@@ -1,0 +1,2 @@
+printf '<speak><say-as interpret-as="characters">%s</say-as></speak>' "${FLAG:?}" \
+  | espeak-ng -m -s 110 -v en-us --stdin -w "$ICONDIR/flag.wav"

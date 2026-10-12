@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Standalone verifier for gap-gap (pure Python, no Sage).
+
+Given the 30-digit middle block that Coppersmith recovers in solve.sage, this
+rebuilds the RSA factors from the N-1 = 2*g*h structure and decrypts the flag.
+
+    ./verify.py                      # verify the embedded live instance
+    ./verify.py capture.txt <middle> # verify another captured instance
+"""
+
+import ast
+import math
+import re
+import sys
+from pathlib import Path
+
+from Crypto.Util.number import isPrime, long_to_bytes
+
+# Live instance (the tuple that produced the accepted flag).
+LIVE_N = 17668783236117152126485520467381256749713800338617774162102315727072334513530974092444263508885081786780174120287011946678632446389866217953988953155080281513690341686636339616426230464681760338926816665120476574579728096674877360540222394397985852678043378301517687303217499142036938641711854881074061154894533855328481832536929088561481554266312683291429096396256314359395263518429524009085373545278988556614040421459307411586939139929249807686943968245350292302963982562138136143166910518100799275468812185078034322295178161039079957298341919003536597027926850870944628630710133642645390134290086920833786595018139
+LIVE_E = 1659125864185605799196693195656882928175046949306715117297591466215331373121887405974690730352123915395097969769652642830246016519559054040164973579715044750687693014603666325819879017973303582379121436454933806004991352812659121510250502232733013786716940265861991487930907028900089872183305011753076247175717082603952150857126465832250194416395963690194800573470592432070414681005542014443067325349824289589530656102309851452708984399
+LIVE_C = 116676012577912273669167633022885965805151223885893283036913393725711009179075511856813239031938868172420413849711384593839861109865500976999408307678458972374914737442015941064664285340902387484134537121497861448919345856184707445072726081847495192575012174254357654221374748819993554493924020479866929527105000638905748625761168343349853886919024370119198488510799556611135494889781073209533637269720422420174671618289253767609643640718632476498187707175448663530266600404655359870962253094569443060365264048066637573542004921282850414941225341649936268221360766925037370163155004076063741454321656425477310389269
+LIVE_D_LEAK = "93561958556505568031598881410780016108913853954" + "*" * 30 + "61501251584271136576288777262606558999703562879"
+LIVE_MIDDLE = 394763461651477606961253008639
+
+if len(sys.argv) > 1:
+    text = Path(sys.argv[1]).read_text()
+
+    def value(name):
+        return ast.literal_eval(re.search(rf"^{name} = (.+)$", text, re.M).group(1))
+
+    N, e, c, d_leak = (value(name) for name in ("N", "e", "c", "d_leak"))
+    middle = int(sys.argv[2])
+    capture = sys.argv[1]
+else:
+    N, e, c, d_leak = LIVE_N, LIVE_E, LIVE_C, LIVE_D_LEAK
+    middle = LIVE_MIDDLE
+    capture = "<embedded live instance>"
+
+prefix, suffix = d_leak.split("*" * 30)
+d = int(prefix) * 10 ** 77 + middle * 10 ** 47 + int(suffix)
+assert str(d)[:47] == prefix and str(d)[-47:] == suffix
+
+# N - 1 = 2*g*h, so gcd(e*d-1, N-1) hands us 2*g directly.
+two_g = math.gcd(e * d - 1, N - 1)
+g = two_g // 2
+h = (N - 1) // two_g
+assert two_g.bit_length() == 601
+assert isPrime(g) and isPrime(h) and 2 * g * h == N - 1
+
+# h = 2*g*a*b + (a+b), and a+b < 2*g, so divmod splits product from sum.
+ab, a_plus_b = divmod(h, 2 * g)
+delta = a_plus_b ** 2 - 4 * ab
+sqrt_delta = math.isqrt(delta)
+assert sqrt_delta ** 2 == delta
+a = (a_plus_b + sqrt_delta) // 2
+b = (a_plus_b - sqrt_delta) // 2
+p, q = 2 * g * a + 1, 2 * g * b + 1
+assert isPrime(p) and isPrime(q) and p * q == N
+
+lam = math.lcm(p - 1, q - 1)
+assert lam == 2 * g * a * b and e * d % lam == 1
+m = pow(c, d, N)
+assert pow(m, e, N) == c
+plaintext = long_to_bytes(m)
+
+print(f"capture = {capture}")
+print(f"middle = {middle:030d}")
+print(f"g bits = {g.bit_length()}, h bits = {h.bit_length()}")
+print(f"p*q == N: {p * q == N}")
+print(f"e*d mod lambda = {e * d % lam}")
+print(f"reencryption matches: {pow(m, e, N) == c}")
+print(f"plaintext = {plaintext!r}")

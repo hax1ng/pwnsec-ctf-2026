@@ -1,0 +1,18 @@
+services:
+  web:
+    build: ./app
+    ports:
+      - "3010:3000"
+    environment:
+      FLAG: "pwnsec{local_test_flag}"
+      SESSION_SECRET: "change-me-session-secret"
+      BOT_SESSION_ID: "change-me-bot-session"
+      BOT_TOKEN: "change-me-bot-token"
+
+  bot:
+    build: ./bot
+    ports:
+      - "3011:3001"
+    environment:
+      APP_ORIGIN: "http://web:3000"
+      BOT_TOKEN: "change-me-bot-token"

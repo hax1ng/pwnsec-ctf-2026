@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# SageMath generated
+*.sage.py
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# CTF scratch & bulky artifacts (kept out of the published writeups on purpose)
+*.core
+core
+core.*
+*.log
+*.out
+*.strace
+*.pcap
+*.pcapng
+*.zip
+*.tar.gz
+*.tar
